@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from queuectl.models import Job, JobState
 
 
@@ -18,7 +20,7 @@ def test_timestamps_are_created():
     assert job.updated_at is not None
 
 
-def test_next_run_at_is_none():
+def test_next_run_at_is_datetime():
     job = Job(id="job1", command="echo Hello")
 
-    assert job.next_run_at is None
+    assert isinstance(job.next_run_at, datetime)

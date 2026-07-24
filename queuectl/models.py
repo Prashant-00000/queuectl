@@ -1,7 +1,10 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional
+
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 
 
 class JobState(str, Enum):
@@ -22,7 +25,8 @@ class Job:
     attempts: int = 0
     max_retries: int = 3
 
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=utc_now)
+    updated_at: datetime = field(default_factory=utc_now)
 
-    next_run_at: Optional[datetime] = None
+    # Earliest time this job is eligible to run.
+    next_run_at: datetime = field(default_factory=utc_now)
