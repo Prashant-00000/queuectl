@@ -1,6 +1,8 @@
 import sqlite3
 from pathlib import Path
 
+from queuectl.models import Job
+
 
 class Database:
     def __init__(self, db_path: str = "queue.db"):
@@ -33,6 +35,35 @@ class Database:
                 next_run_at TEXT NOT NULL
             )
             """
+        )
+
+        self.conn.commit()
+
+    def add_job(self, job: Job):
+        self.conn.execute(
+            """
+            INSERT INTO jobs (
+                id,
+                command,
+                state,
+                attempts,
+                max_retries,
+                created_at,
+                updated_at,
+                next_run_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                job.id,
+                job.command,
+                job.state.value,
+                job.attempts,
+                job.max_retries,
+                job.created_at.isoformat(),
+                job.updated_at.isoformat(),
+                job.next_run_at.isoformat(),
+            ),
         )
 
         self.conn.commit()

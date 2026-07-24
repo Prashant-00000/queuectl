@@ -1,3 +1,7 @@
+import sqlite3
+
+from queuectl.models import Job
+
 from queuectl.db import Database
 
 
@@ -76,3 +80,40 @@ def test_database_uses_custom_path(tmp_path):
         pass
 
     assert db_path.exists()
+
+
+def test_add_job(tmp_path):
+    db_path = tmp_path / "test.db"
+
+    with Database(db_path) as db:
+        job = Job(
+            id="job1",
+            command="echo Hello",
+        )
+
+        db.add_job(job)
+
+        row = db.conn.execute(
+            "SELECT * FROM jobs WHERE id=?",
+            ("job1",)
+        ).fetchone()
+
+        assert row is not None
+        assert row["id"] == "job1"
+        assert row["command"] == "echo Hello"
+        assert row["state"] == "pending"
+
+
+def test_add_job_duplicate_id(tmp_path):
+    db_path = tmp_path / "test.db"
+
+    with Database(db_path) as db:
+        job = Job(id="job1", command="echo Hello")
+
+        db.add_job(job)
+
+        try:
+            db.add_job(job)
+            assert False, "Expected sqlite3.IntegrityError"
+        except sqlite3.IntegrityError:
+            pass
