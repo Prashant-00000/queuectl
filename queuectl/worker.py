@@ -1,9 +1,10 @@
+from datetime import timedelta
 import subprocess
 import time
 import typer
 
 from queuectl.db import Database
-from queuectl.models import JobState
+from queuectl.models import JobState, utc_now
 
 
 def process_one_job(db: Database) -> bool:
@@ -29,6 +30,8 @@ def process_one_job(db: Database) -> bool:
         job.attempts += 1
 
         if job.attempts < job.max_retries:
+            delay_seconds = 2 ** job.attempts
+            job.next_run_at = utc_now() + timedelta(seconds=delay_seconds)
             job.state = JobState.PENDING
         else:
             # TODO(dlq): When the Dead Letter Queue is implemented,
