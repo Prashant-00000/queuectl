@@ -82,9 +82,7 @@ def test_failed_job_exhausts_retries(tmp_path):
             
             updated_job = db.get_job(job.id)
             assert updated_job.attempts == 3
-            # TODO(dlq): Update this expectation to DEAD once
-            # the Dead Letter Queue feature is implemented.
-            assert updated_job.state == JobState.FAILED
+            assert updated_job.state == JobState.DEAD
 
 
 def test_failed_job_backoff_increases(tmp_path):
@@ -125,3 +123,16 @@ def test_future_jobs_are_not_claimed(tmp_path):
 
         claimed = db.claim_next_job()
         assert claimed is None
+
+
+def test_dead_job_is_not_claimed(tmp_path):
+    db_path = tmp_path / "test.db"
+    job = make_job()
+    job.state = JobState.DEAD
+
+    with Database(db_path) as db:
+        db.add_job(job)
+
+        claimed = db.claim_next_job()
+        assert claimed is None
+

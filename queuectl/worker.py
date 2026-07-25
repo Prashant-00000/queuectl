@@ -34,10 +34,7 @@ def process_one_job(db: Database) -> bool:
             job.next_run_at = utc_now() + timedelta(seconds=delay_seconds)
             job.state = JobState.PENDING
         else:
-            # TODO(dlq): When the Dead Letter Queue is implemented,
-            # exhausted jobs should move to the DLQ (or be marked DEAD)
-            # instead of remaining FAILED.
-            job.state = JobState.FAILED
+            job.state = JobState.DEAD
 
     db.update_job(job)
 

@@ -11,6 +11,7 @@ class JobState(str, Enum):
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
+    # Reserved for a future transient "failed but retryable" state if needed.
     FAILED = "failed"
     DEAD = "dead"
 
