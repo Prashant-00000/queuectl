@@ -1,12 +1,37 @@
+# Python
 __pycache__/
 *.py[cod]
-.pytest_cache/
-.coverage
-htmlcov/
+
+# Virtual environments
 .venv/
 venv/
+
+# Environment
 .env
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Type checker / linter
+.mypy_cache/
+.ruff_cache/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# SQLite
 queue.db
 queue.db-shm
 queue.db-wal
+
+# Runtime config
 .queuectl_config.json

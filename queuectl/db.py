@@ -199,6 +199,11 @@ class Database:
         cursor = self.conn.execute(query, params)
         return [self._row_to_job(row) for row in cursor.fetchall()]
 
+    def get_job_counts(self) -> dict[str, int]:
+        """Return the count of jobs for each state."""
+        cursor = self.conn.execute("SELECT state, COUNT(*) as count FROM jobs GROUP BY state")
+        return {row["state"]: row["count"] for row in cursor.fetchall()}
+
     def close(self):
         """Close the database connection."""
         if self.conn is not None:

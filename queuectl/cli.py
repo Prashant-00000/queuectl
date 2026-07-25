@@ -81,7 +81,11 @@ def start_worker():
 @worker_app.command("stop")
 def stop_worker():
     """Stop worker(s)."""
-    typer.echo("Worker stop - Coming soon")
+    typer.echo(
+        "Worker stop is not currently implemented. Workers run in the foreground "
+        "and can be stopped with Ctrl+C.\n"
+        "Graceful SIGTERM management is planned as a future improvement."
+    )
 
 
 @app.command()
@@ -129,7 +133,19 @@ def enqueue(payload: str):
 @app.command()
 def status():
     """Show queue status."""
-    typer.echo("Status - Coming soon")
+    with Database() as db:
+        counts = db.get_job_counts()
+    
+    total = sum(counts.values())
+
+    typer.echo("Queue Status")
+    typer.echo("------------")
+    typer.echo(f"Pending:      {counts.get(JobState.PENDING.value, 0)}")
+    typer.echo(f"Processing:   {counts.get(JobState.PROCESSING.value, 0)}")
+    typer.echo(f"Completed:    {counts.get(JobState.COMPLETED.value, 0)}")
+    typer.echo(f"Dead:         {counts.get(JobState.DEAD.value, 0)}")
+    typer.echo("")
+    typer.echo(f"Total Jobs:   {total}")
 
 
 @app.command()

@@ -138,4 +138,24 @@ def test_dlq_retry_non_dead_job(tmp_path, monkeypatch):
     result = runner.invoke(app, ["dlq", "retry", "pending-job"])
     assert result.exit_code == 1
     assert "Job is not in the Dead Letter Queue." in result.output
+
+
+def test_status(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    jobs = [
+        Job(id="job-1", command="echo hello", state=JobState.PENDING),
+        Job(id="job-2", command="echo hello", state=JobState.COMPLETED),
+        Job(id="job-3", command="echo hello", state=JobState.DEAD),
+    ]
+    with Database(tmp_path / "queue.db") as db:
+        for job in jobs:
+            db.add_job(job)
+    
+    runner = CliRunner()
+    result = runner.invoke(app, ["status"])
+    assert result.exit_code == 0
+    assert "Pending:      1" in result.output
+    assert "Completed:    1" in result.output
+    assert "Dead:         1" in result.output
+    assert "Total Jobs:   3" in result.output
 
