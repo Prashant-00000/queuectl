@@ -4,6 +4,7 @@ import uuid
 
 import typer
 
+from queuectl.config import get_config, set_config
 from queuectl.db import Database
 from queuectl.models import Job
 from queuectl.worker import run_worker
@@ -14,6 +15,21 @@ app = typer.Typer(
 
 worker_app = typer.Typer(help="Manage workers.")
 app.add_typer(worker_app, name="worker")
+
+config_app = typer.Typer(help="Manage configuration.")
+app.add_typer(config_app, name="config")
+
+@config_app.command("set")
+def config_set(key: str, value: str):
+    """Set a configuration value."""
+    set_config(key, value)
+    typer.echo(f"Set {key} to {value}")
+
+@config_app.command("get")
+def config_get(key: str):
+    """Get a configuration value."""
+    val = get_config(key)
+    typer.echo(f"{key}: {val}")
 
 
 @worker_app.command("start")
@@ -55,7 +71,7 @@ def enqueue(payload: str):
     job = Job(
         id=data.get("id", str(uuid.uuid4())),
         command=data["command"],
-        max_retries=data.get("max_retries", 3),
+        max_retries=data.get("max_retries", int(get_config("max_retries"))),
     )
 
     try:

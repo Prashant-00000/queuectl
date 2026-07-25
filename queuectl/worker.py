@@ -5,6 +5,7 @@ import typer
 
 from queuectl.db import Database
 from queuectl.models import JobState, utc_now
+from queuectl.config import get_config, BACKOFF_MAX_SECONDS
 
 
 def process_one_job(db: Database) -> bool:
@@ -30,7 +31,11 @@ def process_one_job(db: Database) -> bool:
         job.attempts += 1
 
         if job.attempts < job.max_retries:
-            delay_seconds = 2 ** job.attempts
+            backoff_base = int(get_config("backoff_base"))
+            delay_seconds = min(
+                backoff_base ** job.attempts,
+                BACKOFF_MAX_SECONDS,
+            )
             job.next_run_at = utc_now() + timedelta(seconds=delay_seconds)
             job.state = JobState.PENDING
         else:

@@ -9,3 +9,4 @@ venv/
 queue.db
 queue.db-shm
 queue.db-wal
+.queuectl_config.json

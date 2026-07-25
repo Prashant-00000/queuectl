@@ -3,6 +3,7 @@ from datetime import timedelta
 from unittest.mock import patch
 
 from queuectl.db import Database
+from queuectl.config import set_config
 from queuectl.models import Job, JobState, utc_now
 from queuectl.worker import process_one_job
 
@@ -135,4 +136,22 @@ def test_dead_job_is_not_claimed(tmp_path):
 
         claimed = db.claim_next_job()
         assert claimed is None
+
+
+def test_failed_job_backoff_dynamic(tmp_path):
+    db_path = tmp_path / "test.db"
+    job = make_job()
+    set_config("backoff_base", "3")
+
+    with Database(db_path) as db:
+        db.add_job(job)
+
+        with patch("queuectl.worker.subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            
+            # Failure 1
+            process_one_job(db)
+            updated_job = db.get_job(job.id)
+            delay1 = (updated_job.next_run_at - utc_now()).total_seconds()
+            assert delay1 >= 2.5
 

@@ -4,6 +4,7 @@ import uuid
 from typer.testing import CliRunner
 
 from queuectl.cli import app
+from queuectl.config import set_config
 from queuectl.db import Database
 
 
@@ -77,3 +78,21 @@ def test_missing_command(tmp_path, monkeypatch):
 
     assert result.exit_code == 1
     assert "Missing required field: command" in result.output
+
+
+def test_enqueue_respects_max_retries_config(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    set_config("max_retries", "5")
+    
+    runner = CliRunner()
+    payload = json.dumps({"command": "echo Hello"})
+    result = runner.invoke(app, ["enqueue", payload])
+    
+    assert result.exit_code == 0
+    
+    queued_line = next(line for line in result.output.splitlines() if line.startswith("Queued job: "))
+    job_id = queued_line.removeprefix("Queued job: ").strip()
+    
+    with Database(tmp_path / "queue.db") as db:
+        job = db.get_job(job_id)
+        assert job.max_retries == 5
