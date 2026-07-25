@@ -6,7 +6,7 @@ import typer
 
 from queuectl.config import get_config, set_config
 from queuectl.db import Database
-from queuectl.models import Job
+from queuectl.models import Job, JobState, utc_now
 from queuectl.worker import run_worker
 
 app = typer.Typer(
@@ -30,6 +30,45 @@ def config_get(key: str):
     """Get a configuration value."""
     val = get_config(key)
     typer.echo(f"{key}: {val}")
+
+
+dlq_app = typer.Typer(help="Manage the Dead Letter Queue.")
+app.add_typer(dlq_app, name="dlq")
+
+@dlq_app.command("list")
+def dlq_list():
+    """List dead jobs."""
+    with Database() as db:
+        dead_jobs = db.list_jobs(state=JobState.DEAD)
+
+    if not dead_jobs:
+        typer.echo("No jobs in the Dead Letter Queue.")
+        return
+
+    for job in dead_jobs:
+        typer.echo(f"{job.id}\tAttempts: {job.attempts}\tCommand: {job.command}")
+
+@dlq_app.command("retry")
+def dlq_retry(job_id: str):
+    """Retry a dead job."""
+    with Database() as db:
+        job = db.get_job(job_id)
+
+        if job is None:
+            typer.echo("Job not found.")
+            raise typer.Exit(1)
+
+        if job.state != JobState.DEAD:
+            typer.echo("Job is not in the Dead Letter Queue.")
+            raise typer.Exit(1)
+
+        job.state = JobState.PENDING
+        job.attempts = 0
+        job.next_run_at = utc_now()
+
+        db.update_job(job)
+
+    typer.echo(f"Requeued {job.id}")
 
 
 @worker_app.command("start")

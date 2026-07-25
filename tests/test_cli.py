@@ -6,6 +6,7 @@ from typer.testing import CliRunner
 from queuectl.cli import app
 from queuectl.config import set_config
 from queuectl.db import Database
+from queuectl.models import Job, JobState
 
 
 def test_enqueue_persists_job(tmp_path, monkeypatch):
@@ -95,4 +96,46 @@ def test_enqueue_respects_max_retries_config(tmp_path, monkeypatch):
     
     with Database(tmp_path / "queue.db") as db:
         job = db.get_job(job_id)
-        assert job.max_retries == 5
+        assert job.max_retries == 5
+
+
+def test_dlq_list(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    job = Job(id="dead-job-1", command="echo hello", state=JobState.DEAD)
+    with Database(tmp_path / "queue.db") as db:
+        db.add_job(job)
+    
+    runner = CliRunner()
+    result = runner.invoke(app, ["dlq", "list"])
+    assert result.exit_code == 0
+    assert "dead-job-1" in result.output
+
+
+def test_dlq_retry(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    job = Job(id="dead-job-2", command="echo hello", state=JobState.DEAD, attempts=3)
+    with Database(tmp_path / "queue.db") as db:
+        db.add_job(job)
+    
+    runner = CliRunner()
+    result = runner.invoke(app, ["dlq", "retry", "dead-job-2"])
+    assert result.exit_code == 0
+    assert "Requeued dead-job-2" in result.output
+    
+    with Database(tmp_path / "queue.db") as db:
+        updated = db.get_job("dead-job-2")
+        assert updated.state == JobState.PENDING
+        assert updated.attempts == 0
+
+
+def test_dlq_retry_non_dead_job(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    job = Job(id="pending-job", command="echo hello", state=JobState.PENDING)
+    with Database(tmp_path / "queue.db") as db:
+        db.add_job(job)
+    
+    runner = CliRunner()
+    result = runner.invoke(app, ["dlq", "retry", "pending-job"])
+    assert result.exit_code == 1
+    assert "Job is not in the Dead Letter Queue." in result.output
+

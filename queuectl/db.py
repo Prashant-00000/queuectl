@@ -187,6 +187,18 @@ class Database:
 
         self.conn.commit()
 
+    def list_jobs(self, state: Optional[JobState] = None) -> list[Job]:
+        """Fetch a list of jobs, optionally filtered by state."""
+        query = "SELECT * FROM jobs"
+        params = []
+        if state:
+            query += " WHERE state = ?"
+            params.append(state.value)
+        query += " ORDER BY created_at ASC"
+
+        cursor = self.conn.execute(query, params)
+        return [self._row_to_job(row) for row in cursor.fetchall()]
+
     def close(self):
         """Close the database connection."""
         if self.conn is not None:
