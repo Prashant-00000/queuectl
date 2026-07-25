@@ -6,6 +6,7 @@ import typer
 
 from queuectl.db import Database
 from queuectl.models import Job
+from queuectl.worker import run_worker
 
 app = typer.Typer(
     help="QueueCTL - A command-line background job queue."
@@ -17,8 +18,9 @@ app.add_typer(worker_app, name="worker")
 
 @worker_app.command("start")
 def start_worker():
-    """Start worker(s)."""
-    typer.echo("Worker start - Coming soon")
+    """Start the worker."""
+    with Database() as db:
+        run_worker(db)
 
 
 @worker_app.command("stop")

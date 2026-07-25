@@ -1,4 +1,6 @@
 import subprocess
+import time
+import typer
 
 from queuectl.db import Database
 from queuectl.models import JobState
@@ -29,3 +31,18 @@ def process_one_job(db: Database) -> bool:
     db.update_job(job)
 
     return True
+
+
+def run_worker(db):
+    """
+    Continuously process jobs until interrupted.
+    """
+    try:
+        while True:
+            processed = process_one_job(db)
+
+            if not processed:
+                time.sleep(1)
+
+    except KeyboardInterrupt:
+        typer.echo("\nWorker stopped.")
