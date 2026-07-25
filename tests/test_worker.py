@@ -41,7 +41,7 @@ def test_process_one_job_success(tmp_path):
             assert updated_job.state == JobState.COMPLETED
 
 
-def test_process_one_job_failure(tmp_path):
+def test_failed_job_is_requeued(tmp_path):
     db_path = tmp_path / "test.db"
     job = make_job()
 
@@ -57,4 +57,29 @@ def test_process_one_job_failure(tmp_path):
             mock_run.assert_called_once_with(job.command, shell=True, capture_output=True, text=True)
             
             updated_job = db.get_job(job.id)
+            assert updated_job.attempts == 1
+            assert updated_job.state == JobState.PENDING
+
+
+def test_failed_job_exhausts_retries(tmp_path):
+    db_path = tmp_path / "test.db"
+    job = make_job()
+    job.attempts = 2
+    job.max_retries = 3
+
+    with Database(db_path) as db:
+        db.add_job(job)
+
+        with patch("queuectl.worker.subprocess.run") as mock_run:
+            mock_run.return_value.returncode = 1
+            
+            result = process_one_job(db)
+            
+            assert result is True
+            mock_run.assert_called_once_with(job.command, shell=True, capture_output=True, text=True)
+            
+            updated_job = db.get_job(job.id)
+            assert updated_job.attempts == 3
+            # TODO(dlq): Update this expectation to DEAD once
+            # the Dead Letter Queue feature is implemented.
             assert updated_job.state == JobState.FAILED

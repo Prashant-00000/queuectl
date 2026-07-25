@@ -26,7 +26,15 @@ def process_one_job(db: Database) -> bool:
     if result.returncode == 0:
         job.state = JobState.COMPLETED
     else:
-        job.state = JobState.FAILED
+        job.attempts += 1
+
+        if job.attempts < job.max_retries:
+            job.state = JobState.PENDING
+        else:
+            # TODO(dlq): When the Dead Letter Queue is implemented,
+            # exhausted jobs should move to the DLQ (or be marked DEAD)
+            # instead of remaining FAILED.
+            job.state = JobState.FAILED
 
     db.update_job(job)
 
