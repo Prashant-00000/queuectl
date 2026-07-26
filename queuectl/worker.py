@@ -18,6 +18,8 @@ def process_one_job(db: Database) -> bool:
     if job is None:
         return False
 
+    typer.echo(f"Processing {job.id}...")
+
     result = subprocess.run(
         job.command,
         shell=True,
@@ -27,19 +29,22 @@ def process_one_job(db: Database) -> bool:
 
     if result.returncode == 0:
         job.state = JobState.COMPLETED
+        typer.echo(f"{job.id} completed")
     else:
         job.attempts += 1
 
         if job.attempts < job.max_retries:
-            backoff_base = int(get_config("backoff_base"))
+            backoff_base = int(get_config("backoff_base", db_path=db.db_path))
             delay_seconds = min(
                 backoff_base ** job.attempts,
                 BACKOFF_MAX_SECONDS,
             )
             job.next_run_at = utc_now() + timedelta(seconds=delay_seconds)
             job.state = JobState.PENDING
+            typer.echo(f"{job.id} failed (attempt {job.attempts}/{job.max_retries}), retrying...")
         else:
             job.state = JobState.DEAD
+            typer.echo(f"{job.id} exhausted retries, moved to DLQ")
 
     db.update_job(job)
 
@@ -59,3 +64,8 @@ def run_worker(db):
 
     except KeyboardInterrupt:
         typer.echo("\nWorker stopped.")
+
+def run_worker_process():
+    """Entry point for a spawned worker process."""
+    with Database() as db:
+        run_worker(db)

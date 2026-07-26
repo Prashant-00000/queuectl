@@ -1,4 +1,5 @@
 import json
+import multiprocessing
 import sqlite3
 import uuid
 
@@ -7,7 +8,7 @@ import typer
 from queuectl.config import get_config, set_config
 from queuectl.db import Database
 from queuectl.models import Job, JobState, utc_now
-from queuectl.worker import run_worker
+from queuectl.worker import run_worker, run_worker_process
 
 app = typer.Typer(
     help="QueueCTL - A command-line background job queue."
@@ -72,10 +73,29 @@ def dlq_retry(job_id: str):
 
 
 @worker_app.command("start")
-def start_worker():
-    """Start the worker."""
-    with Database() as db:
-        run_worker(db)
+def start_worker(count: int = typer.Option(1, "--count", help="Number of worker processes to start.")):
+    """Start the worker(s)."""
+    if count == 1:
+        run_worker_process()
+        return
+
+    processes = []
+    for _ in range(count):
+        p = multiprocessing.Process(target=run_worker_process)
+        p.start()
+        processes.append(p)
+    
+    try:
+        for p in processes:
+            p.join()
+    except KeyboardInterrupt:
+        typer.echo("\nStopping all workers gracefully (waiting up to 5s)...")
+        for p in processes:
+            p.join(timeout=5)
+            if p.is_alive():
+                typer.echo(f"Worker {p.pid} did not stop gracefully, terminating.")
+                p.terminate()
+                p.join()
 
 
 @worker_app.command("stop")
@@ -97,14 +117,18 @@ def enqueue(payload: str):
 
     queuectl enqueue '{"id":"job1","command":"sleep 2"}'
     """
-
     try:
         data = json.loads(payload)
     except json.JSONDecodeError as e:
         typer.secho(f"Invalid JSON: {e}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
-    if "command" not in data:
+    if not isinstance(data, dict):
+        typer.secho("Payload must be a JSON object", fg=typer.colors.RED)
+        raise typer.Exit(code=1)
+
+    command = data.get("command")
+    if not isinstance(command, str) or not command.strip():
         typer.secho(
             "Missing required field: command",
             fg=typer.colors.RED,
@@ -148,10 +172,31 @@ def status():
     typer.echo(f"Total Jobs:   {total}")
 
 
-@app.command()
-def list():
-    """List jobs."""
-    typer.echo("List - Coming soon")
+@app.command(name="list")
+def list_jobs(
+    state: str = typer.Option(None, "--state", help="Filter jobs by state (pending, processing, completed, failed, dead)")
+):
+    """List jobs, optionally filtered by state."""
+    state_filter = None
+    if state is not None:
+        try:
+            state_filter = JobState(state)
+        except ValueError:
+            typer.secho(
+                f"Invalid state '{state}'. Valid states: {[s.value for s in JobState]}",
+                fg=typer.colors.RED,
+            )
+            raise typer.Exit(code=1)
+
+    with Database() as db:
+        jobs = db.list_jobs(state=state_filter)
+
+    if not jobs:
+        typer.echo("No jobs found.")
+        return
+
+    for job in jobs:
+        typer.echo(f"{job.id}\t{job.state.value}\tAttempts: {job.attempts}/{job.max_retries}\tCommand: {job.command}")
 
 
 if __name__ == "__main__":

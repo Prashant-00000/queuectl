@@ -53,6 +53,17 @@ class Database:
             """
         )
 
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS config (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+            """
+        )
+        self.conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES ('max_retries', '3')")
+        self.conn.execute("INSERT OR IGNORE INTO config (key, value) VALUES ('backoff_base', '2')")
+
         self.conn.commit()
 
     def _row_to_job(self, row) -> Optional[Job]:

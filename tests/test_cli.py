@@ -158,4 +158,76 @@ def test_status(tmp_path, monkeypatch):
     assert "Completed:    1" in result.output
     assert "Dead:         1" in result.output
     assert "Total Jobs:   3" in result.output
+
+
+def test_list_jobs(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    jobs = [
+        Job(id="job-1", command="echo hello", state=JobState.PENDING),
+        Job(id="job-2", command="echo hello", state=JobState.COMPLETED),
+    ]
+    with Database(tmp_path / "queue.db") as db:
+        for job in jobs:
+            db.add_job(job)
+    
+    runner = CliRunner()
+    result = runner.invoke(app, ["list"])
+    assert result.exit_code == 0
+    assert "job-1" in result.output
+    assert "job-2" in result.output
+
+
+def test_list_jobs_filtered(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    jobs = [
+        Job(id="job-1", command="echo hello", state=JobState.PENDING),
+        Job(id="job-2", command="echo hello", state=JobState.COMPLETED),
+    ]
+    with Database(tmp_path / "queue.db") as db:
+        for job in jobs:
+            db.add_job(job)
+    
+    runner = CliRunner()
+    result = runner.invoke(app, ["list", "--state", "pending"])
+    assert result.exit_code == 0
+    assert "job-1" in result.output
+    assert "job-2" not in result.output
+
+
+def test_enqueue_not_dict(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    
+    result = runner.invoke(app, ["enqueue", '"just a string"'])
+    assert result.exit_code == 1
+    assert "Payload must be a JSON object" in result.output
+
+
+def test_worker_start_count(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    
+    class MockProcess:
+        start_count = 0
+        join_count = 0
+        
+        def __init__(self, target):
+            self.target = target
+            
+        def start(self):
+            MockProcess.start_count += 1
+            
+        def join(self, timeout=None):
+            MockProcess.join_count += 1
+            
+        def is_alive(self):
+            return False
+
+    monkeypatch.setattr("queuectl.cli.multiprocessing.Process", MockProcess)
+    
+    result = runner.invoke(app, ["worker", "start", "--count", "3"])
+    assert result.exit_code == 0
+    
+    assert MockProcess.start_count == 3
+    assert MockProcess.join_count == 3
 

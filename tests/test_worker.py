@@ -141,7 +141,7 @@ def test_dead_job_is_not_claimed(tmp_path):
 def test_failed_job_backoff_dynamic(tmp_path):
     db_path = tmp_path / "test.db"
     job = make_job()
-    set_config("backoff_base", "3")
+    set_config("backoff_base", "3", db_path=db_path)
 
     with Database(db_path) as db:
         db.add_job(job)
